@@ -70,6 +70,4 @@ tags
 [._]*.un~
 
 # Project Related
-hello
-output
-examples/
+tests/
