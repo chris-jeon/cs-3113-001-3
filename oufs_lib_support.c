@@ -3,6 +3,8 @@
 
 #define debug 1
 
+int oufs_print_bin(char bin);
+
 /**
  * Read the ZPWD and ZDISK environment variables & copy their values into cwd and disk_name.
  * If these environment variables are not set, then reasonable defaults are given.
@@ -176,17 +178,41 @@ int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode)
 int oufs_format_disk(char * virtual_disk_name){
 
 	int disk_fd;
-	if ((disk_fd = open(virtual_disk_name, O_CREAT | O_RDWR)) == -1)
+	if ((disk_fd = open(virtual_disk_name, O_CREAT | O_RDWR)) == -1){
 		fprintf(stderr, "Unable to open virtual disk %s\n", virtual_disk_name);
+		return -1;
+	}
 
-	for (int blocks = 0; blocks < N_BLOCKS_IN_DISK; blocks++) {
-		for (int block = 0; block < BLOCK_SIZE; block++) {
-		
-			if (write(disk_fd, "J", 1) == -1)
-				fprintf(stderr, "Unable to write to %s\n", virtual_disk_name);
-
+	for (int i = 0; i < N_BLOCKS_IN_DISK * BLOCK_SIZE; i++) {
+		if (write(disk_fd, "\0", 1) == -1){
+			fprintf(stderr, "Unable to write to %s\n", virtual_disk_name);
+			return -2;
 		}
 	}
+
+	vdisk_disk_open(virtual_disk_name);
+	BLOCK block;
+	block.master.inode_allocated_flag[0] = 1;
+	for (int i = 1; i <= 6; i++) 
+		block.master.inode_allocated_flag[i] = 0;
+	block.master.block_allocated_flag[0] = 255;
+	block.master.block_allocated_flag[1] = 3;
+
+	if (vdisk_write_block(0, &block) < 0)
+		fprintf(stdout, "Unable to format master block\n");
+
+	return 0;
+}
+
+int oufs_print_bin(char bin) {
+
+	for (int i = 0; i < 8; i++) {
+		if (fprintf(stdout, "%d", !!((bin << i) & 0x80)) == -1){
+			fprintf(stderr, "Unable to print char in binary oufs_print_bin(%c)\n", bin);
+			return -1;
+		}
+	}
+	fprintf(stdout, "\n");
 
 	return 0;
 }
@@ -197,10 +223,10 @@ int oufs_write_inode_by_reference(INODE_REFERENCE i, INODE * inode){
 }
 
 int oufs_find_file(char * cwd,
-                   char * path,
-                   INODE_REFERENCE * parent,
-                   INODE_REFERENCE * child,
-                   char * local_name){
+		char * path,
+		INODE_REFERENCE * parent,
+		INODE_REFERENCE * child,
+		char * local_name){
 
 	return 0;
 }
