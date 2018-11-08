@@ -7,7 +7,7 @@
  */
 
 // Debug flag
-#define debug 0
+#define debug 1
 
 // File descriptor for virtual disk.  Private to this file
 // Yes, global variables are generally a bad idea...
@@ -94,8 +94,6 @@ int vdisk_read_block(BLOCK_REFERENCE block_ref, void *block)
 		fprintf(stderr, "vdisk_read_block(): seek failed\n");
 		return(-3);
 	}
-
-	// Read the block
 	if(read(vdisk_fd, block, BLOCK_SIZE) != BLOCK_SIZE) {
 		fprintf(stderr, "vdisk_read_block(): read failed\n");
 		return(-4);

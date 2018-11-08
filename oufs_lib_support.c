@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include "oufs_lib.h"
 
-#define debug 0
+#define debug 1
 
 /**
  * Read the ZPWD and ZDISK environment variables & copy their values into cwd and disk_name.
@@ -174,6 +174,19 @@ int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode)
 }
 
 int oufs_format_disk(char * virtual_disk_name){
+
+	int disk_fd;
+	if ((disk_fd = open(virtual_disk_name, O_CREAT | O_RDWR)) == -1)
+		fprintf(stderr, "Unable to open virtual disk %s\n", virtual_disk_name);
+
+	for (int blocks = 0; blocks < N_BLOCKS_IN_DISK; blocks++) {
+		for (int block = 0; block < BLOCK_SIZE; block++) {
+		
+			if (write(disk_fd, "J", 1) == -1)
+				fprintf(stderr, "Unable to write to %s\n", virtual_disk_name);
+
+		}
+	}
 
 	return 0;
 }

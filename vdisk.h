@@ -21,3 +21,4 @@ int vdisk_read_block(BLOCK_REFERENCE block_ref, void *block);
 int vdisk_write_block(BLOCK_REFERENCE block_ref, void *block);
 
 #endif
+

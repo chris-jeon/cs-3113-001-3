@@ -21,13 +21,13 @@
 
 /**********************************************************************/
 /*
-File system layout onto disk blocks:
+   File system layout onto disk blocks:
 
-Block 0: Master block
-Blocks 1 ... N_INODE_BLOCKS: inodes
-Blocks N_INODE_BLOCKS+1 ... N_BLOCKS_ON_DISK-1: data for files and directories
+   Block 0: Master block
+   Blocks 1 ... N_INODE_BLOCKS: inodes
+   Blocks N_INODE_BLOCKS+1 ... N_BLOCKS_ON_DISK-1: data for files and directories
    (Block N_BLOCKS+1 is allocated for the root directory)
-*/
+   */
 
 /**********************************************************************/
 // Basic types and sizes
@@ -58,7 +58,7 @@ typedef unsigned short INODE_REFERENCE;
 // Data block: storage for file contents (project 4!)
 typedef struct data_block_s
 {
-  unsigned char data[BLOCK_SIZE];
+	unsigned char data[BLOCK_SIZE];
 } DATA_BLOCK;
 
 
@@ -71,17 +71,17 @@ typedef struct data_block_s
 // Single inode
 typedef struct inode_s
 {
-  // IT_NONE, IT_DIRECTORY, IT_FILE
-  char type;
+	// IT_NONE, IT_DIRECTORY, IT_FILE
+	char type;
 
-  // Number of directories references to this inode
-  unsigned char n_references;
+	// Number of directories references to this inode
+	unsigned char n_references;
 
-  // Contents.  UNALLOCATED_BLOCK means that this entry is not used
-  BLOCK_REFERENCE data[BLOCKS_PER_INODE];
+	// Contents.  UNALLOCATED_BLOCK means that this entry is not used
+	BLOCK_REFERENCE data[BLOCKS_PER_INODE];
 
-  // File: size in bytes; Directory: number of directory entries (including . and ..)
-  unsigned int size;
+	// File: size in bytes; Directory: number of directory entries (including . and ..)
+	unsigned int size;
 } INODE;
 
 // Number of inodes stored in each block
@@ -93,7 +93,7 @@ typedef struct inode_s
 // Block of inodes
 typedef struct inode_block_s
 {
-  INODE inode[INODES_PER_BLOCK];
+	INODE inode[INODES_PER_BLOCK];
 } INODE_BLOCK;
 
 
@@ -103,24 +103,24 @@ typedef struct inode_block_s
 
 typedef struct master_block_s
 {
-  // 8 inodes per byte: One inode per bit: 1 = allocated, 0 = free
-  // The first inode is byte 0, bit 0
-  unsigned char inode_allocated_flag[N_INODES >> 3];
+	// 8 inodes per byte: One inode per bit: 1 = allocated, 0 = free
+	// The first inode is byte 0, bit 0
+	unsigned char inode_allocated_flag[N_INODES >> 3];
 
-  // 8 data blocks per byte: One block per bit: 1 = allocated, 0 = free
-  // Block 0 (the master block) is byte 0, bit 0
-  unsigned char block_allocated_flag[N_BLOCKS_IN_DISK >> 3];
+	// 8 data blocks per byte: One block per bit: 1 = allocated, 0 = free
+	// Block 0 (the master block) is byte 0, bit 0
+	unsigned char block_allocated_flag[N_BLOCKS_IN_DISK >> 3];
 } MASTER_BLOCK;
 
 /**********************************************************************/
 // Single directory element
 typedef struct directory_entry_s
 {
-  // Name of file/directory
-  char name[FILE_NAME_SIZE];
+	// Name of file/directory
+	char name[FILE_NAME_SIZE];
 
-  // UNALLOCATED_INODE if this directory entry is non-existent
-  INODE_REFERENCE inode_reference;
+	// UNALLOCATED_INODE if this directory entry is non-existent
+	INODE_REFERENCE inode_reference;
 
 } DIRECTORY_ENTRY;
 
@@ -130,7 +130,7 @@ typedef struct directory_entry_s
 // Directory block
 typedef struct directory_block_s
 {
-  DIRECTORY_ENTRY entry[DIRECTORY_ENTRIES_PER_BLOCK];
+	DIRECTORY_ENTRY entry[DIRECTORY_ENTRIES_PER_BLOCK];
 } DIRECTORY_BLOCK;
 
 /**********************************************************************/
@@ -139,10 +139,10 @@ typedef struct directory_block_s
 //  memory (hence, a block will only be one of these 4 at any given time)
 typedef union block_u
 {
-  DATA_BLOCK data;
-  MASTER_BLOCK master;
-  INODE_BLOCK inodes;
-  DIRECTORY_BLOCK directory;
+	DATA_BLOCK data;
+	MASTER_BLOCK master;
+	INODE_BLOCK inodes;
+	DIRECTORY_BLOCK directory;
 } BLOCK;
 
 
@@ -151,10 +151,11 @@ typedef union block_u
 
 typedef struct oufile_s
 {
-  INODE_REFERENCE inode_reference;
-  char mode;
-  int offset;
+	INODE_REFERENCE inode_reference;
+	char mode;
+	int offset;
 } OUFILE;
 
 
 #endif
+

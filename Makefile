@@ -1,6 +1,12 @@
 CC=gcc
 
-all: zformat
+all: zformat zinspect
+
+zinspect: zinspect.o oufs_lib_support.o vdisk.o
+	$(CC) -Wall zinspect.c oufs_lib_support.c vdisk.c -o zinspect
+
+zinspect.o: zinspect.c
+	$(CC) -c zinspect.c
 
 zformat: zformat.o oufs_lib_support.o vdisk.o
 	$(CC) -Wall zformat.c oufs_lib_support.c vdisk.c -o zformat
