@@ -5,11 +5,11 @@
 #define MAX_PATH_LENGTH 200
 
 // PROVIDED
-void oufs_get_environment(char *cwd, char *disk_name);
+void oufs_get_environment(char *cwd, char *disk_name); // P
 
 // PROJECT 3
-int oufs_format_disk(char  *virtual_disk_name);
-int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode);
+int oufs_format_disk(char  *virtual_disk_name); 
+int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode); // P
 int oufs_write_inode_by_reference(INODE_REFERENCE i, INODE *inode);
 int oufs_find_file(char *cwd, char * path, INODE_REFERENCE *parent, INODE_REFERENCE *child, char *local_name);
 int oufs_mkdir(char *cwd, char *path);
@@ -18,8 +18,8 @@ int oufs_rmdir(char *cwd, char *path);
 
 // Helper functions in oufs_lib_support.c
 void oufs_clean_directory_block(INODE_REFERENCE self, INODE_REFERENCE parent, BLOCK *block);
-void oufs_clean_directory_entry(DIRECTORY_ENTRY *entry);
-BLOCK_REFERENCE oufs_allocate_new_block();
+void oufs_clean_directory_entry(DIRECTORY_ENTRY *entry); // P
+BLOCK_REFERENCE oufs_allocate_new_block(); // P
 
 // Helper functions to be provided
 int oufs_find_open_bit(unsigned char value);

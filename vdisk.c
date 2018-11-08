@@ -7,7 +7,7 @@
  */
 
 // Debug flag
-#define debug 1
+#define debug 0
 
 // File descriptor for virtual disk.  Private to this file
 // Yes, global variables are generally a bad idea...

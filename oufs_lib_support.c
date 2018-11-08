@@ -177,29 +177,52 @@ int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode)
 
 int oufs_format_disk(char * virtual_disk_name){
 
-	int disk_fd;
-	if ((disk_fd = open(virtual_disk_name, O_CREAT | O_RDWR)) == -1){
-		fprintf(stderr, "Unable to open virtual disk %s\n", virtual_disk_name);
-		return -1;
-	}
-
-	for (int i = 0; i < N_BLOCKS_IN_DISK * BLOCK_SIZE; i++) {
-		if (write(disk_fd, "\0", 1) == -1){
-			fprintf(stderr, "Unable to write to %s\n", virtual_disk_name);
-			return -2;
-		}
-	}
-
+	// Open virtual disk
 	vdisk_disk_open(virtual_disk_name);
+
+	// Zero out entire virtual disk
 	BLOCK block;
+	memset(&block, 0, sizeof(block));
+	for (int i = 0; i < N_BLOCKS_IN_DISK; i++) {
+		vdisk_write_block(i, &block);
+	}
+
+	// Format master block
+	memset(&block, 0, sizeof(block));
 	block.master.inode_allocated_flag[0] = 1;
-	for (int i = 1; i <= 6; i++) 
+	for (int i = 1; i <= 6; i++){
 		block.master.inode_allocated_flag[i] = 0;
+	}
 	block.master.block_allocated_flag[0] = 255;
 	block.master.block_allocated_flag[1] = 3;
-
 	if (vdisk_write_block(0, &block) < 0)
 		fprintf(stdout, "Unable to format master block\n");
+
+	// Format inode[0]
+	memset(&block, 0, sizeof(block));
+	block.inodes.inode[0].type = IT_DIRECTORY;
+	block.inodes.inode[0].n_references = 1;
+	for (int i = 0; i < BLOCKS_PER_INODE; i++) {
+		if (i == 0)
+			block.inodes.inode[0].data[i] = 9;
+		else
+			block.inodes.inode[0].data[i] = UNALLOCATED_BLOCK;
+	}
+	block.inodes.inode[0].size = 2;
+	if (vdisk_write_block(1, &block) < 0)
+		fprintf(stdout, "Unable to format master block\n");
+	
+	// Format root directory
+	memset(&block, 0, sizeof(block));
+	strcpy(block.directory.entry[0].name, ".");
+	strcpy(block.directory.entry[1].name, "..");
+	block.directory.entry[0].inode_reference = 0;
+	block.directory.entry[1].inode_reference = 0;
+	if (vdisk_write_block(9, &block) < 0)
+		fprintf(stdout, "Unable to format master block\n");
+
+	// Close virtual disk
+	vdisk_disk_close(virtual_disk_name);
 
 	return 0;
 }
@@ -219,7 +242,23 @@ int oufs_print_bin(char bin) {
 
 int oufs_write_inode_by_reference(INODE_REFERENCE i, INODE * inode){
 
-	return 0;
+	// TODO: INCOMPLETE!! COPY OF READ FUNCTION
+
+	if(debug)
+		fprintf(stderr, "Fetching inode %d\n", i);
+
+	// Find the address of the inode block and the inode within the block
+	BLOCK_REFERENCE block = i / INODES_PER_BLOCK + 1;
+	int element = (i % INODES_PER_BLOCK);
+
+	BLOCK b;
+	if(vdisk_read_block(block, &b) == 0) {
+		// Successfully loaded the block: copy just this inode
+		*inode = b.inodes.inode[element];
+		return(0);
+	}
+	// Error case
+	return(-1);
 }
 
 int oufs_find_file(char * cwd,
