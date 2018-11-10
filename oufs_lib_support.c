@@ -250,17 +250,16 @@ int oufs_write_inode_by_reference(INODE_REFERENCE i, INODE * inode){
 	int inode_no = i % INODES_PER_BLOCK;
 
 	BLOCK block;
-	vdisk_read_block(block_no, &block);
+	if (vdisk_read_block(block_no, &block) == -1) return -1;
 
 	block.inodes.inode[inode_no] = *inode;
 
-	vdisk_write_block(block_no, &block);
+	if (vdisk_write_block(block_no, &block) == -1) return -1;
 
 	return 0;
 }
 
 // Given a directory inode, find the entry with a specified name and return its inode index
-// Working
 int oufs_find_inode_ref_by_name (INODE inode, char * name, INODE_REFERENCE * inode_reference) {
 
 	BLOCK block;
@@ -278,7 +277,6 @@ int oufs_find_inode_ref_by_name (INODE inode, char * name, INODE_REFERENCE * ino
 
 			// Make note of the entry's inode reference and break out of the loop
 			*inode_reference = block.directory.entry[i].inode_reference;
-			fprintf(stdout, "%s | %d\n", block.directory.entry[i].name, block.directory.entry[i].inode_reference);
 			return 1;
 		}
 	}
@@ -287,10 +285,53 @@ int oufs_find_inode_ref_by_name (INODE inode, char * name, INODE_REFERENCE * ino
 	return 0;
 }
 
-// Return: 1 - file found; 0 - no file found; -1 - error;
 int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REFERENCE * child) {
 
-	// TOKENIZE PATH
+	INODE_REFERENCE cwd_inode_ref = 0;
+	INODE_REFERENCE path_inode_ref;
+
+	if (!strcmp(path, "/")) {
+		fprintf(stderr, "Improper path name %s\n", path);
+		return -1;
+	}
+
+	if (strcmp(cwd, "/")) { // If the cwd is not the home directory
+
+		char ** cwd_ptr;
+		char * cwd_tok[MAX_PATH_LENGTH];                     // pointers to cwd_ptr strings
+		char cwd_buf[MAX_PATH_LENGTH];                      // line buffer
+		strncpy(cwd_buf, cwd, MAX_PATH_LENGTH);
+		cwd_ptr = cwd_tok;
+		*cwd_ptr++ = strtok(cwd_buf,"/");   // tokenize input
+		while ((*cwd_ptr++ = strtok(NULL,"/")));
+		cwd_ptr = cwd_tok;
+
+		INODE cwd_inode;
+
+		for (;;) {
+
+			// Load new inode
+			memset(&cwd_inode, 0, sizeof(cwd_inode));
+			oufs_read_inode_by_reference(cwd_inode_ref, &cwd_inode);
+
+			if (oufs_find_inode_ref_by_name (cwd_inode, *cwd_ptr, &cwd_inode_ref)) {
+				*parent = *child; // Assign the parent the the child's previous inode ref
+				*child = cwd_inode_ref; // Assign the child to the newly found inode ref
+				cwd_ptr = cwd_ptr + 1; // Move to the next token
+				if (!*cwd_ptr) {
+					// Valid cwd path
+					path_inode_ref = cwd_inode_ref;
+					break;
+				}
+			} else {
+				fprintf(stderr, "Invalid cwd %s\n", cwd);
+				return -1;
+			}
+		}
+	}
+
+
+	// Since the cwd inode was properly found, tokenize path
 	char path_buf[MAX_PATH_LENGTH];                      // line buffer
 	char * path_tok[MAX_PATH_LENGTH];                     // pointers to path_ptr strings
 	char ** path_ptr;
@@ -300,54 +341,38 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 	while ((*path_ptr++ = strtok(NULL,"/")));
 	path_ptr = path_tok;
 
-	// IF CWD IS BASE DIR
-	if (!strcmp(cwd, "/")) {
+	INODE path_inode;
 
-		// Initialize inode_reference to 0 since we're starting at root
-		INODE_REFERENCE inode_reference = 0;
-		INODE inode;
-		*parent = *child = 0;
+	for (;;) {
 
-		// Infinite loop because we plan to return out of it
-		for (;;) {
+		// Load new inode
+		memset(&path_inode, 0, sizeof(path_inode));
+		oufs_read_inode_by_reference(path_inode_ref, &path_inode);
 
-			// Read inode by reference
-			oufs_read_inode_by_reference(inode_reference, &inode);
-
-			// If no child is found, return 0 
-			if (oufs_find_inode_ref_by_name(inode, *path_ptr, &inode_reference) == 0) return 0;
-
-			// Otherwise assign parent to previous child value...
+		if (oufs_find_inode_ref_by_name (path_inode, *path_ptr, &path_inode_ref)) {
+			// Match found at current inode
 			*parent = *child;
-
-			// ...and assign child to the new inode_reference
-			*child = inode_reference;
-
-			// Increment path token pointer
-			*path_ptr = *path_ptr + 1;
-
-			// If no more tokens, assign local_name to previous token (that exists) and return
-			if(!*path_ptr) {
-
-				// strcpy(local_name, *path_ptr - 1);
+			*child = path_inode_ref;
+			path_ptr = path_ptr + 1; // Move to the next token
+			if (!*path_ptr) {
+				// Name found
 				return 1;
+			}
+		} else {
+			path_ptr = path_ptr + 1;
+			if (!*path_ptr) {
+				// Name not found
+				return 0;
+			} else {
+				// Invalid path
+				fprintf(stderr, "Improper path name %s\n", path);
+				return -1;
 			}
 		}
 
-
-	} else { // TODO: IF CWD IS NOT BASE DIR
-
-		// TOKENIZE CWD
-		char ** cwd_ptr;
-		char * cwd_tok[MAX_PATH_LENGTH];                     // pointers to cwd_ptr strings
-		char cwd_buf[MAX_PATH_LENGTH];                      // line buffer
-		strncpy(cwd_buf, cwd, MAX_PATH_LENGTH);
-		cwd_ptr = cwd_tok;
-		*cwd_ptr++ = strtok(cwd_buf,"/");   // tokenize input
-		while ((*cwd_ptr++ = strtok(NULL,"/")));
-		cwd_ptr = cwd_tok;
 	}
 
+	// This should not be reached
 	return -1;
 }
 
@@ -396,12 +421,14 @@ int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 			break;
 		} else {
 			if (i == size - 1) {
-				fprintf(stderr, "Not enough available space to make directory\n");
+				if (type == 'I') fprintf(stderr, "Not enough available inodes to make directory\n");
+				if (type == 'B') fprintf(stderr, "Not enough available blocks to make directory\n");
 				return -1;
 			}
 		}
 	}
 
+	// Flip bytes in master
 	char new_byte = byte_array[byte];
 	oufs_flip_bit(&new_byte, bit);
 	byte_array[byte] = new_byte;
@@ -413,7 +440,119 @@ int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 
 int oufs_mkdir(char * cwd, char * path){
 
-	INODE_REFERENCE grandparent, parent_inode_no;
+	INODE_REFERENCE gparent_inode_ref, parent_inode_ref;
+	
+	// Search to see if path already exists in cwd
+	int find_file = oufs_find_file (cwd, path, &gparent_inode_ref, &parent_inode_ref);
+
+	if (find_file == 0) { // Make directory
+
+		// Get name of directory from path
+		char dir_name[FILE_NAME_SIZE];
+		char temp[MAX_PATH_LENGTH];
+		strcpy(temp, path);
+		char * basename_ptr = basename(temp);
+		if (strlen(basename_ptr) > FILE_NAME_SIZE) {
+			fprintf(stderr, "Directory name too large\n");
+			return -1;
+		} else {
+			strcpy(dir_name, basename_ptr);
+		}
+
+		// Read parent inode block
+		INODE parent_inode;
+		BLOCK_REFERENCE parent_block_ref;
+
+		if (oufs_read_inode_by_reference(parent_inode_ref, &parent_inode) < 0) return -1;
+
+		// Check to see if parent can fit new directory
+		if (parent_inode.size == BLOCKS_PER_INODE) {
+			fprintf(stderr, "Not enough space in parent\n");
+			return -1;
+		}
+
+		// Read master block
+		BLOCK block_0;
+		if (vdisk_read_block(0, &block_0) < 0) return -1;
+
+		// Get inode/block positions for new inode and new block, modify master block
+		int child_inode_ref;
+		if (oufs_find_bit_positions(block_0.master.inode_allocated_flag, &child_inode_ref, 'I') < 0) return -1;
+
+		int child_block_ref;
+		if (oufs_find_bit_positions(block_0.master.block_allocated_flag, &child_block_ref, 'B') < 0) return -1;
+
+		// Write master block
+		if (vdisk_write_block(0, &block_0) < 0) return -1;
+
+		// Modify parent inode block
+		parent_inode.size = parent_inode.size + 1;
+		parent_block_ref = parent_inode.data[0];
+
+		// Write parent inode block
+		if (oufs_write_inode_by_reference(parent_inode_ref, &parent_inode) < 0) return -1;
+
+		// Read parent directory block
+		BLOCK parent_dir_block;
+		if (vdisk_read_block(parent_block_ref, &parent_dir_block) < 0) return -1;
+
+		// Modify parent directory block
+		for (int i = 0; i < BLOCKS_PER_INODE; i++) {
+			if (parent_dir_block.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
+				strcpy(parent_dir_block.directory.entry[i].name, dir_name);
+				parent_dir_block.directory.entry[i].inode_reference = child_inode_ref;
+				break;
+			}
+		}
+
+		// Write parent directory block
+		if (vdisk_write_block(parent_block_ref, &parent_dir_block) < 0) return -1;
+
+
+		// Build new directory block
+		BLOCK child_dir_block;
+
+		for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
+			child_dir_block.directory.entry[i].inode_reference = UNALLOCATED_INODE;
+
+		strcpy(child_dir_block.directory.entry[0].name, ".");
+		child_dir_block.directory.entry[0].inode_reference = child_inode_ref;
+
+		strcpy(child_dir_block.directory.entry[1].name, "..");
+		child_dir_block.directory.entry[1].inode_reference = parent_inode_ref;
+
+		// Write new directory block
+		if (vdisk_write_block(child_block_ref, &child_dir_block) < 0) return -1;
+
+		// Make new inode 
+		INODE child_inode;
+
+		child_inode.type = IT_DIRECTORY;
+		child_inode.n_references = 1;
+
+		for (int i = 0; i < BLOCKS_PER_INODE; i++) 
+			child_inode.data[i] = UNALLOCATED_BLOCK;
+
+		child_inode.data[0] = child_block_ref;
+
+		child_inode.size = 2;
+
+		// Write new inode 
+		if (oufs_write_inode_by_reference(child_inode_ref, &child_inode) < 0) return -1;
+
+	} else if (find_file == 1) { // Cant make directory, dir name exists
+
+		fprintf(stderr, "Unable to make directory %s, name exists.\n", path);
+		return -1;
+		
+	} else { // Error
+
+		return -1;
+
+	}
+
+
+	/*
 
 	// If there is no file found, make directory
 	int found = oufs_find_file (cwd, path, &grandparent, &parent_inode_no);
@@ -434,7 +573,7 @@ int oufs_mkdir(char * cwd, char * path){
 			fprintf(stderr, "Unable to create directory. Parent too full.\n");
 			return -1;
 		}
-		
+
 		BLOCK master_block;
 		vdisk_read_block(0, &master_block);
 
@@ -445,7 +584,7 @@ int oufs_mkdir(char * cwd, char * path){
 		// Find block position for child
 		int child_block_no;
 		oufs_find_bit_positions(master_block.master.block_allocated_flag, &child_block_no, 'B');
-	
+
 		// Update master block
 		vdisk_write_block(0, &master_block);
 
@@ -489,7 +628,7 @@ int oufs_mkdir(char * cwd, char * path){
 
 		// Write parent block
 		vdisk_write_block(parent_inode.data[0], &parent_block);
-		
+
 		// Updade parent inode size
 		parent_inode.size++;
 
@@ -505,6 +644,7 @@ int oufs_mkdir(char * cwd, char * path){
 		fprintf(stderr, "Error walking path\n");
 		return -1;
 	}
+	*/
 
 	return 0;
 }
