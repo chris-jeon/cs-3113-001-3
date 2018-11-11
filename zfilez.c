@@ -1,18 +1,42 @@
+#include <stdio.h>
+#include <string.h>
 
-int main (int argc, char * argv[]){
+#include "oufs_lib.h"
 
-	// If no parameter is passed to zfilez you should print all the files in the ZCWD.
-	// zfilez: while we have suggested using qsort() in the directory block to generate an ASCII-order listing, do not write this block back to the virtual disk.
+int main(int argc, char * argv[]) {
 
-	// No name is specified: list the current working directory
-	if (!argv[1])
-		fprintf(stdout, "No arg given\n");	
-
-	// A directory is specified: list the contents of the directory
 	
-	// A file is specified: give the name of a file
+	// Fetch the key environment vars
+	char cwd[MAX_PATH_LENGTH];
+	char disk_name[MAX_PATH_LENGTH];
+	oufs_get_environment(cwd, disk_name);
+
+	// Check arguments
+	if (argc == 1) {
+
+		// Open the virtual disk
+		vdisk_disk_open(disk_name);
+
+		// Make the specified directory
+		oufs_list(cwd, "./");
+
+		// Clean up
+		vdisk_disk_close();
 	
-	// It is an error if name does not exist in the file system
-	
-	return 0;
+	} else if (argc == 2) {
+
+		// Open the virtual disk
+		vdisk_disk_open(disk_name);
+
+		// Make the specified directory
+		oufs_list(cwd, argv[1]);
+
+		// Clean up
+		vdisk_disk_close();
+
+	} else {
+		// Wrong number of parameters
+		fprintf(stderr, "Usage: zmkdir <dirname>\n");
+	}
+
 }

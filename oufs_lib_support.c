@@ -441,7 +441,7 @@ int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 int oufs_mkdir(char * cwd, char * path){
 
 	INODE_REFERENCE gparent_inode_ref, parent_inode_ref;
-	
+
 	// Search to see if path already exists in cwd
 	int find_file = oufs_find_file (cwd, path, &gparent_inode_ref, &parent_inode_ref);
 
@@ -544,112 +544,12 @@ int oufs_mkdir(char * cwd, char * path){
 
 		fprintf(stderr, "Unable to make directory %s, name exists.\n", path);
 		return -1;
-		
+
 	} else { // Error
 
 		return -1;
 
 	}
-
-
-	/*
-
-	// If there is no file found, make directory
-	int found = oufs_find_file (cwd, path, &grandparent, &parent_inode_no);
-	if (found == 0){
-
-		// Get name from path
-		char temp[MAX_PATH_LENGTH];
-		strcpy(temp, path);
-		char file_name[FILE_NAME_SIZE];
-		strcpy(file_name, basename(temp));
-
-		// Get parent inode
-		INODE parent_inode;
-		oufs_read_inode_by_reference(parent_inode_no, &parent_inode);
-
-		// Check to see if the parent data block has space
-		if (parent_inode.size >= DIRECTORY_ENTRIES_PER_BLOCK) {
-			fprintf(stderr, "Unable to create directory. Parent too full.\n");
-			return -1;
-		}
-
-		BLOCK master_block;
-		vdisk_read_block(0, &master_block);
-
-		// Find inode position for child
-		int child_inode_no;
-		oufs_find_bit_positions(master_block.master.inode_allocated_flag, &child_inode_no, 'I');
-
-		// Find block position for child
-		int child_block_no;
-		oufs_find_bit_positions(master_block.master.block_allocated_flag, &child_block_no, 'B');
-
-		// Update master block
-		vdisk_write_block(0, &master_block);
-
-		// Build child directory block
-		BLOCK child_block;
-		strcpy(child_block.directory.entry[0].name, ".");
-		child_block.directory.entry[0].inode_reference = child_inode_no;
-		strcpy(child_block.directory.entry[1].name, "..");
-		child_block.directory.entry[1].inode_reference = parent_inode_no;
-		for (int i = 2; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
-			child_block.directory.entry[i].inode_reference = UNALLOCATED_INODE;
-
-		// Write child block
-		vdisk_write_block(child_block_no, &child_block);
-
-		// Build child inode
-		INODE child_inode;
-		child_inode.type = IT_DIRECTORY;
-		child_inode.n_references = 1;
-		for (int i = 0; i < BLOCKS_PER_INODE; i++) {
-			if (i == 0)
-				child_inode.data[i] = child_block_no;
-			else
-				child_inode.data[i] = UNALLOCATED_BLOCK;
-		}
-		child_inode.size = 2;
-
-		// Write child inode
-		oufs_write_inode_by_reference(child_inode_no, &child_inode);
-
-		// Rebuild parent block
-		BLOCK parent_block;
-		vdisk_read_block(parent_inode.data[0], &parent_block);
-		for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++){
-			if (parent_block.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
-				strcpy(parent_block.directory.entry[i].name, file_name);
-				parent_block.directory.entry[i].inode_reference = child_inode_no;
-				break;
-			}
-		}
-
-		// Write parent block
-		vdisk_write_block(parent_inode.data[0], &parent_block);
-
-		// Updade parent inode size
-		parent_inode.size++;
-
-		// Write parent inode
-		oufs_write_inode_by_reference(parent_inode_no, &parent_inode);
-
-	} else if (found == 1) {
-
-		fprintf(stderr, "%s already exists in %s\n", path, cwd);
-		return -1;
-	} else {
-
-		fprintf(stderr, "Error walking path\n");
-		return -1;
-	}
-	*/
-
-	return 0;
-}
-
-int oufs_list(char * cwd, char * path){
 
 	return 0;
 }
@@ -660,6 +560,74 @@ int oufs_rmdir(char * cwd, char * path){
 }
 
 int oufs_find_open_bit(unsigned char value){
+
+	return 0;
+}
+
+int oufs_comparator(const void *a, const void *b) {
+	const char* aa = *(const char**)a;
+	const char* bb = *(const char**)b;
+	return strcmp(aa,bb);
+	return 0;
+}
+
+int oufs_list(char * cwd, char * path) {
+
+	INODE_REFERENCE parent_inode_ref, child_inode_ref;
+
+	// Search to see if file exists
+	int found = oufs_find_file (cwd, path, &parent_inode_ref, &child_inode_ref);
+	if (found == 0) {
+		fprintf(stderr, "File does not exist\n");
+		return -1;
+	} else if (found < 0) {
+		// Parent function error
+		return -1;
+	}
+
+	// Store child inode locally
+	INODE child_inode;
+	if (oufs_read_inode_by_reference(child_inode_ref, &child_inode) < 0) return -1;
+
+	if (child_inode.type == IT_DIRECTORY) { // Directory
+
+		// Store child directory block locally
+		BLOCK child_dir_block;
+		vdisk_read_block(child_inode.data[0], &child_dir_block);
+
+		char * dir_contents[DIRECTORY_ENTRIES_PER_BLOCK];
+
+		INODE entry;
+		int size = 0;
+		for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
+			// Find all allocated directory contents
+			if (child_dir_block.directory.entry[i].inode_reference != UNALLOCATED_INODE) {
+				oufs_read_inode_by_reference(child_dir_block.directory.entry[i].inode_reference, &entry);
+				dir_contents[size] = child_dir_block.directory.entry[size].name;
+				if (entry.type == IT_DIRECTORY) {
+					strcat(child_dir_block.directory.entry[size].name, "/");
+				}
+				size++;
+			}
+		}
+
+		qsort(dir_contents, size, sizeof(dir_contents[0]), oufs_comparator);
+
+		fprintf(stdout, "./\n");
+		fprintf(stdout, "../\n");
+		for (int i = 0; i < size; i++) {
+			if (strcmp(dir_contents[i], "./") && strcmp(dir_contents[i], "../")) {
+				fprintf(stdout, "%s\n", dir_contents[i]);
+			}
+		}
+
+
+	} else if (child_inode.type == IT_FILE) { // File
+		fprintf(stdout, "File\n");
+
+	} else { // None
+
+	}
 
 	return 0;
 }
