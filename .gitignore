@@ -72,3 +72,4 @@ tags
 # Project Related
 tests/
 vdisk1
+ztest.sh
