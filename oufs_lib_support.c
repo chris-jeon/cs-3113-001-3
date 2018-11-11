@@ -554,7 +554,108 @@ int oufs_mkdir(char * cwd, char * path){
 	return 0;
 }
 
-int oufs_rmdir(char * cwd, char * path){
+int oufs_rmdir(char * cwd, char * path) {
+
+	// Get name of directory from path
+	char dir_name[FILE_NAME_SIZE];
+	char temp[MAX_PATH_LENGTH];
+	strcpy(temp, path);
+	char * basename_ptr = basename(temp);
+	if (strlen(basename_ptr) > FILE_NAME_SIZE) {
+		fprintf(stderr, "Directory name too large\n");
+		return -1;
+	} else {
+		strcpy(dir_name, basename_ptr);
+	}
+
+	// Check to make sure name is legal
+	if (!strcmp(dir_name, ".") || !strcmp(dir_name, "..")) {
+		fprintf(stderr, "Illegal name '%s'\n", dir_name);
+		return -1;
+	}
+
+	INODE_REFERENCE parent_inode_ref, child_inode_ref;
+
+	int found = oufs_find_file (cwd, path, &parent_inode_ref, &child_inode_ref);
+	if (found == 0) {
+		fprintf(stderr, "Name does not exist\n");
+		return -1;
+	} else if (found < 0) {
+		// Parent function error
+		return -1;
+	}
+
+	// Read in child inode and get child dir block from child inode
+	INODE child_inode;
+	if (oufs_read_inode_by_reference(child_inode_ref, &child_inode) < 0) return -1;
+	BLOCK_REFERENCE child_block_ref = child_inode.data[0];
+
+	// Check to make sure child is a directory
+	if (child_inode.type != IT_DIRECTORY) {
+		fprintf(stderr, "%s is not a directory\n", dir_name);
+		return -1;
+	}
+
+	// Check to make sure directory is empty
+	if (child_inode.size != 2) {
+		fprintf(stderr, "%s is not empty\n", dir_name);
+		return -1;
+	}
+
+	// Read in parent inode and get parent dir block from parent inode
+	INODE parent_inode;
+	if (oufs_read_inode_by_reference(parent_inode_ref, &parent_inode) < 0) return -1;
+	BLOCK_REFERENCE parent_block_ref = parent_inode.data[0];
+	
+	// Decrease parent inode size by 1
+	parent_inode.size--;
+
+	// Write updated parent inode
+	if (oufs_write_inode_by_reference(parent_inode_ref, &parent_inode) < 0) return -1;
+	
+	// Find parent dir entry with dir_name, clear name, set inode_ref to UNALLOCATED_INODE
+	BLOCK parent_dir_block;
+	if (vdisk_read_block(parent_block_ref, &parent_dir_block) < 0) return -1;
+	
+	for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
+		if (!strcmp(dir_name, parent_dir_block.directory.entry[i].name)) {
+			memset(parent_dir_block.directory.entry[i].name, 0, sizeof(parent_dir_block.directory.entry[i].name));
+			parent_dir_block.directory.entry[i].inode_reference = UNALLOCATED_INODE;
+			break;
+		}
+	}
+
+	// Write updated parent block
+	if (vdisk_write_block(parent_block_ref, &parent_dir_block) < 0) return -1;
+
+	// Create empty inode and block, write them to child inode ref and child block ref
+	INODE empty_inode;
+	BLOCK empty_block;
+	memset(&empty_inode, 0, sizeof(empty_inode));
+	memset(&empty_block, 0, sizeof(empty_block));
+	if (oufs_write_inode_by_reference(child_inode_ref, &empty_inode) < 0) return -1;
+	if (vdisk_write_block(child_block_ref, &empty_block) < 0) return -1;
+
+	// Read in master block, update both tables, write back to disk
+	BLOCK master_block;
+	if (vdisk_read_block(0, &master_block) < 0) return -1;
+
+	int i_byte, i_bit, b_byte, b_bit;
+	i_byte = child_inode_ref / 8;
+	i_bit = child_inode_ref % 8;
+	b_byte = child_block_ref / 8;
+	b_bit = child_block_ref % 8;
+
+	char new_i_flag = master_block.master.inode_allocated_flag[i_byte];
+	char new_b_flag = master_block.master.block_allocated_flag[b_byte];
+
+	oufs_flip_bit(&new_i_flag, i_bit);
+	oufs_flip_bit(&new_b_flag, b_bit);
+
+	master_block.master.inode_allocated_flag[i_byte] = new_i_flag;
+	master_block.master.block_allocated_flag[b_byte] = new_b_flag;
+
+	if (vdisk_write_block(0, &master_block) < 0) return -1;
 
 	return 0;
 }

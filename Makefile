@@ -1,6 +1,12 @@
 CC=gcc
 
-all: zformat zinspect zmkdir zfilez
+all: zformat zinspect zmkdir zfilez zrmdir
+
+zrmdir: zrmdir.o oufs_lib_support.o vdisk.o
+	$(CC) -Wall zrmdir.c oufs_lib_support.c vdisk.c -o zrmdir
+
+zrmdir.o: zrmdir.c
+	$(CC) -c zrmdir.c
 
 zfilez: zfilez.o oufs_lib_support.o vdisk.o
 	$(CC) -Wall zfilez.c oufs_lib_support.c vdisk.c -o zfilez
