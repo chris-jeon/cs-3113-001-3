@@ -668,67 +668,84 @@ int oufs_find_open_bit(unsigned char value){
 int oufs_comparator(const void *a, const void *b) {
 	const char* aa = *(const char**)a;
 	const char* bb = *(const char**)b;
-	return strcmp(aa,bb);
+	return strncmp(aa, bb, sizeof(char *));
 	return 0;
 }
 
 int oufs_list(char * cwd, char * path) {
 
-	INODE_REFERENCE parent_inode_ref, child_inode_ref;
+	// If path is not given, use cwd
+	if (!path) {
+		path = ".";
+	}
 
-	// Search to see if file exists
-	int found = oufs_find_file (cwd, path, &parent_inode_ref, &child_inode_ref);
-	if (found == 0) {
+	// Collect inode references
+	INODE_REFERENCE parent_inode_ref, inode_ref;
+	if (oufs_find_file (cwd, path, &parent_inode_ref, &inode_ref) < 1) {
 		fprintf(stderr, "File does not exist\n");
 		return -1;
-	} else if (found < 0) {
-		// Parent function error
-		return -1;
 	}
 
-	// Store child inode locally
-	INODE child_inode;
-	if (oufs_read_inode_by_reference(child_inode_ref, &child_inode) < 0) return -1;
+	char * dir_content[DIRECTORY_ENTRIES_PER_BLOCK];
+	char dir_flag[DIRECTORY_ENTRIES_PER_BLOCK];
 
-	if (child_inode.type == IT_DIRECTORY) { // Directory
+	INODE inode;
+	oufs_read_inode_by_reference(inode_ref, &inode);
 
-		// Store child directory block locally
-		BLOCK child_dir_block;
-		vdisk_read_block(child_inode.data[0], &child_dir_block);
-
-		char * dir_contents[DIRECTORY_ENTRIES_PER_BLOCK];
-
-		INODE entry;
-		int size = 0;
-		for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
-			// Find all allocated directory contents
-			if (child_dir_block.directory.entry[i].inode_reference != UNALLOCATED_INODE) {
-				oufs_read_inode_by_reference(child_dir_block.directory.entry[i].inode_reference, &entry);
-				dir_contents[size] = child_dir_block.directory.entry[size].name;
-				if (entry.type == IT_DIRECTORY) {
-					strcat(child_dir_block.directory.entry[size].name, "/");
-				}
-				size++;
-			}
-		}
-
-		qsort(dir_contents, size, sizeof(dir_contents[0]), oufs_comparator);
-
-		fprintf(stdout, "./\n");
-		fprintf(stdout, "../\n");
-		for (int i = 0; i < size; i++) {
-			if (strcmp(dir_contents[i], "./") && strcmp(dir_contents[i], "../")) {
-				fprintf(stdout, "%s\n", dir_contents[i]);
-			}
-		}
-
-
-	} else if (child_inode.type == IT_FILE) { // File
-		fprintf(stdout, "File\n");
-
-	} else { // None
-
+	if (inode.type == IT_FILE) {
+		fprintf(stdout, "%s\n", path);
+		return 0;
 	}
+
+	BLOCK dir_block;
+	vdisk_read_block(inode.data[0], &dir_block);
+
+	for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
+		dir_content[i] = dir_block.directory.entry[i].name;
+
+	qsort(dir_content, DIRECTORY_ENTRIES_PER_BLOCK, sizeof(char *), oufs_comparator);
+
+	INODE temp_inode;
+	for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
+		if (strcmp(dir_content[i], "\0")) {
+			oufs_find_inode_ref_by_name (inode, dir_content[i], &inode_ref);
+			oufs_read_inode_by_reference(inode_ref, &temp_inode);
+			fprintf(stdout, "%s", dir_content[i]);
+			if (temp_inode.type == IT_DIRECTORY)
+				fprintf(stdout, "/");
+			fprintf(stdout, "\n");
+		}
+	}
+
+	/*
+	int size = 0;
+	for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
+		int temp_ref = dir_block.directory.entry[i].inode_reference;
+		if (temp_ref != UNALLOCATED_INODE) {
+			dir_content[size] = dir_block.directory.entry[size].name;
+			oufs_read_inode_by_reference(temp_ref, &inode);
+			if (inode.type == IT_DIRECTORY){
+				dir_flag[size] = 'D';
+			} else {
+				dir_flag[size] = '\0';
+			}
+		} else {
+			dir_flag[size] = '\0';
+			dir_content[size] = "\0";
+		}
+		size++;
+	}
+
+
+	for (int i = 0; i < size; i++) {
+		if (strcmp(dir_content[i], "\0")) {
+			fprintf(stdout, "%s", dir_content[i]);
+			if (dir_flag[i] == 'D')
+				fprintf(stdout, "/");
+			fprintf(stdout, "\n");
+		}
+	}
+	*/
 
 	return 0;
 }
