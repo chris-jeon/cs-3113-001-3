@@ -1,0 +1,23 @@
+#bin/bash
+
+./zformat
+echo "#######" 
+./zinspect -master
+echo "#######" 
+./zfilez
+echo "#######" 
+bash mkdirfor.sh
+./zfilez
+echo "#######" 
+./zinspect -master
+./zmkdir 15
+echo "#######" 
+./zinspect -master
+echo "#######" 
+./zfilez
+echo "#######" 
+./zrmdir 1
+./zinspect -master
+echo "#######" 
+./zfilez
+echo "#######"

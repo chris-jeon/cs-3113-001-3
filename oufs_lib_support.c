@@ -466,7 +466,7 @@ int oufs_mkdir(char * cwd, char * path){
 		if (oufs_read_inode_by_reference(parent_inode_ref, &parent_inode) < 0) return -1;
 
 		// Check to see if parent can fit new directory
-		if (parent_inode.size == BLOCKS_PER_INODE) {
+		if (parent_inode.size == DIRECTORY_ENTRIES_PER_BLOCK) {
 			fprintf(stderr, "Not enough space in parent\n");
 			return -1;
 		}
@@ -497,7 +497,7 @@ int oufs_mkdir(char * cwd, char * path){
 		if (vdisk_read_block(parent_block_ref, &parent_dir_block) < 0) return -1;
 
 		// Modify parent directory block
-		for (int i = 0; i < BLOCKS_PER_INODE; i++) {
+		for (int i = 0; i < DIRECTORY_ENTRIES_PER_BLOCK; i++) {
 			if (parent_dir_block.directory.entry[i].inode_reference == UNALLOCATED_INODE) {
 				strcpy(parent_dir_block.directory.entry[i].name, dir_name);
 				parent_dir_block.directory.entry[i].inode_reference = child_inode_ref;
