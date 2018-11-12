@@ -783,9 +783,29 @@ int oufs_rmdir(char * cwd, char * path) {
 	return 0;
 }
 
-int oufs_find_open_bit(unsigned char value){
+/**
+ * Find an open bit position in an unsigned char (byte)
+ * NOTE: This is effictivly a duplicate of oufs_find_available_bit.
+ * I noticed that this function was required after finishing and did
+ * not want to change my program in multiple places to accomidate it.
+ *
+ * @param byte Char to search for open bit
+ *
+ * @return Position of open bit
+ * 	-1 No bit position found
+ *
+ */
+int oufs_find_open_bit(unsigned char byte) {
 
-	return 0;
+	for (int i = 0; i < 8; i++){
+		if (((byte >> i) & 0x01) == 0){
+			// Return found position
+			return i;
+		}
+	}
+
+	// Return -1 if no position found
+	return -1;
 }
 
 /**
