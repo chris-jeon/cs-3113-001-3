@@ -1,6 +1,7 @@
 CC=gcc
+SOURCES=zformat zinspect zmkdir zfilez zrmdir
 
-all: zformat zinspect zmkdir zfilez zrmdir
+all: $(SOURCES)
 
 zrmdir: zrmdir.o oufs_lib_support.o vdisk.o
 	$(CC) -Wall zrmdir.c oufs_lib_support.c vdisk.c -o zrmdir
@@ -39,4 +40,4 @@ vdisk.o: vdisk.c
 	$(CC) -c vdisk.c
 
 clean:
-	rm *.o zformat
+	rm *.o $(SOURCES) 

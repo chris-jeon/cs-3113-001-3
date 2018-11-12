@@ -10,7 +10,7 @@ int main(int argc, char** argv) {
 	// Open the virtual disk
 	vdisk_disk_open(disk_name);
 
-	// Make the specified directory
+	// Format the disk
 	oufs_format_disk(disk_name);
 
 	// Clean up

@@ -58,7 +58,6 @@ void oufs_clean_directory_entry(DIRECTORY_ENTRY * entry)
  * @param block The block containing the directory contents
  *
  */
-
 void oufs_clean_directory_block(INODE_REFERENCE self, INODE_REFERENCE parent, BLOCK *block)
 {
 	// Debugging output
@@ -178,13 +177,23 @@ int oufs_read_inode_by_reference(INODE_REFERENCE i, INODE *inode)
 	return(-1);
 }
 
+/**
+ * Given a virtual disk name, zero out the entire disk and format both
+ * the master block and root directory.
+ *
+ * @param virtual_disk_name Name of virtual disk to format.
+ *
+ * @return 0 Disk formatted properly
+ * 	 < 0 Error formatting disk
+ *
+ */
 int oufs_format_disk(char * virtual_disk_name){
 
 	// Zero out entire virtual disk
 	BLOCK block;
 	memset(&block, 0, sizeof(block));
 	for (int i = 0; i < N_BLOCKS_IN_DISK; i++) {
-		vdisk_write_block(i, &block);
+		if (vdisk_write_block(i, &block) < 0) return -1;
 	}
 
 	// Format master block
@@ -195,8 +204,7 @@ int oufs_format_disk(char * virtual_disk_name){
 	}
 	block.master.block_allocated_flag[0] = 255;
 	block.master.block_allocated_flag[1] = 3;
-	if (vdisk_write_block(0, &block) < 0)
-		fprintf(stderr, "Unable to format master block\n");
+	if (vdisk_write_block(0, &block) < 0) return -1;
 
 	// Format inode[0]
 	memset(&block, 0, sizeof(block));
@@ -209,8 +217,7 @@ int oufs_format_disk(char * virtual_disk_name){
 			block.inodes.inode[0].data[i] = UNALLOCATED_BLOCK;
 	}
 	block.inodes.inode[0].size = 2;
-	if (vdisk_write_block(1, &block) < 0)
-		fprintf(stderr, "Unable to format master block\n");
+	if (vdisk_write_block(1, &block) < 0) return -1;
 
 	// Format root directory
 	memset(&block, 0, sizeof(block));
@@ -220,15 +227,23 @@ int oufs_format_disk(char * virtual_disk_name){
 	block.directory.entry[1].inode_reference = 0;
 	for (int i = 2; i < DIRECTORY_ENTRIES_PER_BLOCK; i++)
 		block.directory.entry[i].inode_reference = UNALLOCATED_INODE;
-	if (vdisk_write_block(9, &block) < 0)
-		fprintf(stderr, "Unable to format master block\n");
+	if (vdisk_write_block(9, &block) < 0) return -1;
 
+	// Return 0 on success
 	return 0;
 }
 
-// Working
-int oufs_print_bin(char bin) {
+/**
+ * Given a character, print the binary representation of that character.
+ *
+ * @param bin Character to print in binary
+ *
+ * @return 0 Succuessful print
+ *        -1 Unable to print
+ */
+int oufs_print_bin (char bin) {
 
+	// Loop through each bit, print its value
 	for (int i = 0; i < 8; i++) {
 		if (fprintf(stdout, "%d", !!((bin << i) & 0x80)) == -1){
 			fprintf(stderr, "Unable to print char in binary oufs_print_bin(%c)\n", bin);
@@ -240,26 +255,48 @@ int oufs_print_bin(char bin) {
 	return 0;
 }
 
-// Working
+/**
+ *  Given an inode reference, write the inode from the virtual disk.
+ *
+ *  @param i Inode reference (index into the inode list)
+ *  @param inode Pointer to an inode memory structure.  
+ *
+ *  @return 0 = successfully wrote the inode
+ *         -1 = an error has occurred
+ *
+ */
 int oufs_write_inode_by_reference(INODE_REFERENCE i, INODE * inode){
 
 	if(debug)
 		fprintf(stderr, "Fetching inode %d\n", i);
 
+	// Get block and inode numbers
 	int block_no = (i/INODES_PER_BLOCK) + 1;
 	int inode_no = i % INODES_PER_BLOCK;
 
+	// Read block
 	BLOCK block;
 	if (vdisk_read_block(block_no, &block) == -1) return -1;
 
+	// Get proper inode
 	block.inodes.inode[inode_no] = *inode;
 
+	// Write inode to disk
 	if (vdisk_write_block(block_no, &block) == -1) return -1;
 
 	return 0;
 }
 
-// Given a directory inode, find the entry with a specified name and return its inode index
+/**
+ * Given an inode, directory name, and pointer to an inode reference, search
+ * to see if the given directory name exists in the directory block pointed
+ * to by the inode. If so, fill the value pointed to by inode_reference.
+ *
+ * @param inode Inode to search
+ * @param name String to search for in directory block pointed to by inode
+ * @param inode_reference Pointer to populate if proper name is located
+ *
+ */ 
 int oufs_find_inode_ref_by_name (INODE inode, char * name, INODE_REFERENCE * inode_reference) {
 
 	BLOCK block;
@@ -285,29 +322,46 @@ int oufs_find_inode_ref_by_name (INODE inode, char * name, INODE_REFERENCE * ino
 	return 0;
 }
 
+/**
+ * Given a cwd and path, tokenize both inputs and walk their inodes to the end
+ * of path. Return the child inode located at the end of the path and it's parent.
+ *
+ * @param cwd Current working directory
+ * @param path Path to search for
+ * @param parent Pointer to inode reference of parent which will be modified if found
+ * @param child Pointer to inode reference of child which will be modified if found
+ *
+ * @return 0 
+ *       < 0 
+ *
+ */
 int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REFERENCE * child) {
 
+	// Start the cwd inode reference at zero since it will always start at root
 	INODE_REFERENCE cwd_inode_ref = 0;
 	INODE_REFERENCE path_inode_ref;
 
+	// If the given path is '/', set both parent and child to 0 since this is root
 	if (!strcmp(path, "/")) {
-		fprintf(stderr, "Improper path name %s\n", path);
-		return -1;
+		parent = child = 0;
+		return 0;
 	}
 
 	if (strcmp(cwd, "/")) { // If the cwd is not the home directory
 
+		// Since cwd is not the home directory, we need to tokenize the path and get its inode
 		char ** cwd_ptr;
-		char * cwd_tok[MAX_PATH_LENGTH];                     // pointers to cwd_ptr strings
-		char cwd_buf[MAX_PATH_LENGTH];                      // line buffer
+		char * cwd_tok[MAX_PATH_LENGTH];                     
+		char cwd_buf[MAX_PATH_LENGTH];                      
 		strncpy(cwd_buf, cwd, MAX_PATH_LENGTH);
 		cwd_ptr = cwd_tok;
-		*cwd_ptr++ = strtok(cwd_buf,"/");   // tokenize input
+		*cwd_ptr++ = strtok(cwd_buf,"/");   
 		while ((*cwd_ptr++ = strtok(NULL,"/")));
 		cwd_ptr = cwd_tok;
 
 		INODE cwd_inode;
 
+		// Infinite loop until end of path walk (undetermined length)
 		for (;;) {
 
 			// Load new inode
@@ -315,6 +369,7 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 			oufs_read_inode_by_reference(cwd_inode_ref, &cwd_inode);
 
 			if (oufs_find_inode_ref_by_name (cwd_inode, *cwd_ptr, &cwd_inode_ref)) {
+				// If there is an inode found
 				*parent = *child; // Assign the parent the the child's previous inode ref
 				*child = cwd_inode_ref; // Assign the child to the newly found inode ref
 				cwd_ptr = cwd_ptr + 1; // Move to the next token
@@ -324,6 +379,7 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 					break;
 				}
 			} else {
+				// If no inode is found, the cwd is currupt
 				fprintf(stderr, "Invalid cwd %s\n", cwd);
 				return -1;
 			}
@@ -332,17 +388,18 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 
 
 	// Since the cwd inode was properly found, tokenize path
-	char path_buf[MAX_PATH_LENGTH];                      // line buffer
-	char * path_tok[MAX_PATH_LENGTH];                     // pointers to path_ptr strings
+	char path_buf[MAX_PATH_LENGTH];                      
+	char * path_tok[MAX_PATH_LENGTH];                   
 	char ** path_ptr;
 	strncpy(path_buf, path, MAX_PATH_LENGTH);
 	path_ptr = path_tok;
-	*path_ptr++ = strtok(path_buf,"/");   // tokenize input
+	*path_ptr++ = strtok(path_buf,"/");   
 	while ((*path_ptr++ = strtok(NULL,"/")));
 	path_ptr = path_tok;
 
 	INODE path_inode;
 
+	// Infinite loop until end of path walk (undetermined length)
 	for (;;) {
 
 		// Load new inode
@@ -359,9 +416,10 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 				return 1;
 			}
 		} else {
+			// Inode not found, increment pointer and see if this is an error 
 			path_ptr = path_ptr + 1;
 			if (!*path_ptr) {
-				// Name not found
+				// No big deal, name was simply not found
 				return 0;
 			} else {
 				// Invalid path
@@ -376,16 +434,38 @@ int oufs_find_file (char * cwd, char * path, INODE_REFERENCE * parent, INODE_REF
 	return -1;
 }
 
-// Working
+/**
+ * Given a byte (char) and a position in the byte (pos), flip
+ * the pos position in the character using a binary mask.
+ *
+ * @param byte Pointer to byte to modify
+ * @param pos Position of bit to flip
+ *
+ * @return 0 Success
+ *
+ */
 int oufs_flip_bit(char * byte, int pos) {
 
+	// Build binary mask using position
 	int mask = 1 << pos;
+
+	// Mask current byte to flip bit
 	*byte ^= mask;
 
 	return 0;
 }
 
-// Working
+/**
+ * Given a byte, search for an available position in the byte
+ * that is currently a binary 0.
+ *
+ * @param byte Byte to search
+ * @param pos Pointer to position of available bit
+ *
+ * @return 1 Position found
+ * 	   0 No position available (i.e. byte_2 = 1111 1111)
+ *
+ */
 int oufs_find_available_bit(char byte, int * pos) {
 
 	for (int i = 0; i < 8; i++){
@@ -400,9 +480,22 @@ int oufs_find_available_bit(char byte, int * pos) {
 	return 0;
 }
 
-// Working
+/** 
+ * Given an array of bytes (chars) and a type, search each byte in the
+ * array for an available posision. When an available posision is found,
+ * modify the pos pointer to indicate which block posision was chosen.
+ *
+ * @param byte_array Array of characters to search for avaiable position
+ * @param pos Pointer to integer which will indicate which block was chosen
+ * @param type 'I' = Array is inode table, 'B' = Array is block table
+ *
+ * @return 0 Successfully modified byte_array and found position
+ * 	 < 0 Error processing byte array or unable to find position
+ *
+ */
 int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 
+	// Determine type of array
 	int size = 0;
 	if (type == 'I') { // inode table
 		size = (N_INODES >> 3);
@@ -413,13 +506,18 @@ int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 		return -1;
 	}
 
+	// Loop through each character in the char array
 	int byte, bit;
 	for (int i = 0; i < size; i++) {
+
+		// Determine if a bit is available in the current row
 		if (oufs_find_available_bit(byte_array[i], &bit)) {
-			// Position is found
+			// Position is found, break loop
 			byte = i;
 			break;
 		} else {
+			// If no position was found in the current row, check to see if
+			// this is the last row. If so, there is no more room available.
 			if (i == size - 1) {
 				if (type == 'I') fprintf(stderr, "Not enough available inodes to make directory\n");
 				if (type == 'B') fprintf(stderr, "Not enough available blocks to make directory\n");
@@ -428,18 +526,32 @@ int oufs_find_bit_positions(unsigned char * byte_array, int * pos, char type) {
 		}
 	}
 
-	// Flip bytes in master
+	// Flip proper bytes in char array
 	char new_byte = byte_array[byte];
 	oufs_flip_bit(&new_byte, bit);
 	byte_array[byte] = new_byte;
 
+	// Calculate the position of the block
 	*pos = 8 * byte + bit;
 
 	return 0;
 }
 
+/**
+ * Given a cwd and a path, make a directory path at cwd.
+ *
+ * @param cwd Pointer to current working directory path
+ * @param path Pointer to path to create
+ *
+ * @return 0 Successfully created directory
+ * 	 < 0 Error making directory
+ *
+ */
 int oufs_mkdir(char * cwd, char * path){
 
+	// Get inode references from search. The 'parent' inode is useless
+	// in this function, which is why its being labelled the grandparent.
+	// The child is effectivly the parent when making a new directory.
 	INODE_REFERENCE gparent_inode_ref, parent_inode_ref;
 
 	// Search to see if path already exists in cwd
@@ -554,6 +666,16 @@ int oufs_mkdir(char * cwd, char * path){
 	return 0;
 }
 
+/**
+ * Given a cwd and a path, remove a directory path at cwd.
+ *
+ * @param cwd Pointer to current working directory path
+ * @param path Pointer to path to remove
+ *
+ * @return 0 Successfully removed directory
+ * 	 < 0 Error removing directory
+ *
+ */
 int oufs_rmdir(char * cwd, char * path) {
 
 	// Get name of directory from path
@@ -576,6 +698,7 @@ int oufs_rmdir(char * cwd, char * path) {
 
 	INODE_REFERENCE parent_inode_ref, child_inode_ref;
 
+	// See if the path even exists
 	int found = oufs_find_file (cwd, path, &parent_inode_ref, &child_inode_ref);
 	if (found == 0) {
 		fprintf(stderr, "Name does not exist\n");
@@ -665,25 +788,43 @@ int oufs_find_open_bit(unsigned char value){
 	return 0;
 }
 
-/*
-int oufs_comparator(const void *a, const void *b) {
-	const char * aa = *(const char **) a;
-	const char * bb = *(const char **) b;
-	return strncmp(aa, bb, sizeof(char *));
-}
-*/
-
+/**
+ * Comparator used for qsort. Sorts a DIRECTORY_ENTRY struct by the
+ * directory names it holds.
+ *
+ * @param a Pointer to first comparison
+ * @param b Pointer to second comparison
+ *
+ * @return Value of comparison (-1, 0, 1)
+ *
+ */
 int oufs_comparator(const void *a, const void *b) {
 	DIRECTORY_ENTRY const * aa = (DIRECTORY_ENTRY const *) a;
 	DIRECTORY_ENTRY const * bb = (DIRECTORY_ENTRY const *) b;
 	return strncmp(aa->name, bb->name, sizeof(char *));
 }
 
-// TODO: STILL BROKEN
+/**
+ * Given a cwd and a pth, print the contents of path found under
+ * the current working directory.
+ *
+ * @param cwd Pointer to current working directory value
+ * @param path Pointer to path value
+ *
+ * @return 0 Successfully printed directory
+ *       < 0 Error printing directory
+ *
+ */
 int oufs_list(char * cwd, char * path) {
 
 	// If no path is given, use cwd as path
 	if (!path) path = ".";
+
+	// If the given path is '/', list root
+	if (!strcmp(path, "/")){
+		cwd = "/";
+		path = ".";
+	}
 
 	// Locate inode of path
 	INODE_REFERENCE parent_inode_ref, inode_ref;

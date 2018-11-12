@@ -24,7 +24,7 @@ int main(int argc, char * argv[]) {
 		// Open the virtual disk
 		vdisk_disk_open(disk_name);
 
-		// Make the specified directory
+		// Remove the specified directory
 		oufs_rmdir(cwd, argv[1]);
 
 		// Clean up

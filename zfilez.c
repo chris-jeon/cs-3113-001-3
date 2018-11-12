@@ -17,7 +17,7 @@ int main(int argc, char * argv[]) {
 		// Open the virtual disk
 		vdisk_disk_open(disk_name);
 
-		// Make the specified directory
+		// List the specified directory
 		oufs_list(cwd, "./");
 
 		// Clean up
@@ -28,7 +28,7 @@ int main(int argc, char * argv[]) {
 		// Open the virtual disk
 		vdisk_disk_open(disk_name);
 
-		// Make the specified directory
+		// List the specified directory
 		oufs_list(cwd, argv[1]);
 
 		// Clean up
