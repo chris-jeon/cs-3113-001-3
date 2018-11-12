@@ -1,0 +1,93 @@
+To start the project, I needed to get all of the files in one place for the project (there were a lot). I realized that I didn't really understand how to make a makefile with this many dependencies, so that was my next thing. I figured it out pretty quick, turned out to be a lot easier than I thought. Once I had the basics of the new makefile format down, I moved onto figuring out the data structure and how I would work between it and the virtual disk. This turned out to be a bit tricky. It didn't click very quickly. I went and studied zinspect to see how the given code was accomplishing this. It started to make more sense but I didn't understand how unions worked with structs. I emailed 3113 and ended up getting a pretty good explaination. From there, I quickly assembled zformat. This turned out to be quite easy. Write '\0' through the whole disk and selectivly configure very specific, staticly placed parts. So now I had a formatted disk and automated testing verified I did this right. From here, I tried to go to zfilez. I realized this was a dumb route as I didn't have any files to test with and I didn't want to manually create them like I did for zformat. So naturally I moved to zmkdir. This took the lions share of my time. It wasn't as hard as it was tedious, but once I had it working correctly it set me up to easily complete the rest of the project. By the time I finished zmkdir, I understood everything about the filesystem. I wanted to see the files I was making in a ls -1 format so I moved back to zfilez and created a very crude version that I was not very proud of. It worked (kind of) which was enough for me to move forward to zrmdir and see a bit of quick output. Zrmdir wasn't too bad. Probably was the second easiest part behind zformat. This was mostly because a lot of the required code was already made for zmkdir. Pretty much just rewrite and plug it in. At this point I was feeling good about it, but after running some of the student submitted tests on Canvas, I found out that zfilez was clearly getting buggy at the edge cases. I also realized that some of my initializations were using some macros that were incorect in zmkdir but this was only 2 lines of code. I went back to zfilez and rewrote it probably 3 times. Each time I got closer but it kept bugging out. I finally gave up on trying to write everything myself and read up on qsort(). I was avoiding using this on the directory entry struct becasue I kept getting lost in the pointers and couldn't wrap my head around it. Fourth try I got it working. Turns out I was overcomplicating it quite a bit. Ran my code on student tests and the provided tests and I was good to go. I also got the testing report this evening saying I'm passing everything (thank god). There is a lot going on at once in this project so it's stressfull not knowing if one or two things are a bit off. Luckily for me I'm sleeping tonight.
+
+===== GIT LOG =====
+
+commit ad5cac478d01722b790f88dbc731165ea6c4c516
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Mon Nov 12 02:17:32 2018 +0000
+
+    Final commit night prior to submission. All tests passing. Behavior seems completely normal. No known bugs.
+
+commit 7de7a8209633b717c85d63198acc43e151004473
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Mon Nov 12 01:47:29 2018 +0000
+
+    Few minor changes. Add comments to c files.
+
+commit a279cf759d931608f01618b54f3740c3aa40fa7e
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Mon Nov 12 00:26:36 2018 +0000
+
+    Another rewrite of zfilez. Sorting struct vs char * []
+
+commit f7b77d05b6f0bbd28407a45504e3ea4be2da035d
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sun Nov 11 10:40:09 2018 +0000
+
+    Rewrote zfilez to account for high level edge cases
+
+commit de9f3f10439ebef216fd4833e02bffe1ba95c6ee
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sun Nov 11 09:09:40 2018 +0000
+
+    Fixed array size bug in zmkdir
+
+commit 9e8155800b5fd87ff76562542f56465eeb5666bd
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sun Nov 11 08:38:49 2018 +0000
+
+    Minor changes. More tests passed.
+
+commit 0c453505c2cdf0754ed4e2b7524507077e34f82f
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sun Nov 11 08:27:59 2018 +0000
+
+    Implement zrmdir. Passing main test on class page.
+
+commit e76d3a5f475690f8e2079d9a0ad65bd7980e92c1
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sun Nov 11 01:10:26 2018 +0000
+
+    Implement zfilez
+
+commit 55bf5ccc22b3c803a8c4102e2498df7df0dfa528
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sat Nov 10 23:31:18 2018 +0000
+
+    zmkdir properly creates dirs and checks errors
+
+commit 3bacdb2c1da732340abdbbb27b58e2f1002cfca1
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Sat Nov 10 19:21:18 2018 +0000
+
+    Tested all functions but find file
+
+commit 4369a1f530b902e425f738ee14db29ebd581e2ca
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Thu Nov 8 22:02:15 2018 +0000
+
+    Added support for block 1 and block 9 in zformat.
+
+commit d509432c27d0dea805ad6d341a14d777aa5722cd
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Thu Nov 8 20:57:12 2018 +0000
+
+    zformat now correctly formats virtual disk.
+
+commit 51385899f9fa35724786ddef6b23ada6af4c0c2b
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Thu Nov 8 05:55:20 2018 +0000
+
+    Started work on zformat. Zeroed out virtual disk.
+
+commit 0840d3c8413e2d284186bd115caa4bf406f81a2e
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Tue Nov 6 00:57:07 2018 +0000
+
+    Initial commit. Add required files (that I'm aware of so far).
+
+commit 68a59959c69695527bd571294bcb46222339af09
+Author: Jackson Blankenship <jacksontylerblankenship@gmail.com>
+Date:   Thu Sep 20 19:32:37 2018 +0000
+
+    Initial commit
